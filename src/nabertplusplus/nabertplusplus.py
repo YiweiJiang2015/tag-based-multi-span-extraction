@@ -39,6 +39,7 @@ class NumericallyAugmentedBERTPlusPlus(Model):
                  special_numbers: List[int] = None,
                  unique_on_multispan: bool = True,
                  use_pytorch_transformers: bool = False,
+                 use_wordpiece_mask_for_multi_span: bool = True,
                  top_bert_layer_only: bool = True) -> None:
         super().__init__(vocab, regularizer)
 
@@ -93,7 +94,7 @@ class NumericallyAugmentedBERTPlusPlus(Model):
         if "multiple_spans" in self.answering_abilities:
             self._multispan_predictor = default_multispan_predictor(bert_dim, dropout_prob)
             self._multispan_crf = default_crf()
-            self._multi_span_handler = MultiSpanHandler(bert_dim, self._multispan_predictor, self._multispan_crf, dropout_prob)
+            self._multi_span_handler = MultiSpanHandler(bert_dim, self._multispan_predictor, self._multispan_crf, dropout_prob, use_wordpiece_mask_for_multi_span)
             self._unique_on_multispan = unique_on_multispan
 
         self._drop_metrics = CustomDropEmAndF1()

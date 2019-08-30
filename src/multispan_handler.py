@@ -9,8 +9,10 @@ class MultiSpanHandler:
                  bert_dim: int,
                  multi_span_predictor: torch.nn.Sequential,
                  crf: ConditionalRandomField,
-                 dropout_prob: float = 0.1) -> None:
+                 dropout_prob: float = 0.1,
+                 use_wordpiece_mask_for_multi_span: bool = True) -> None:
         self.dropout = dropout_prob
+        self.use_wordpiece_mask_for_multi_span = use_wordpiece_mask_for_multi_span
 
         self.multi_span_predictor = multi_span_predictor        
 
