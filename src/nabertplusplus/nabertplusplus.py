@@ -6,6 +6,7 @@ import torch
 from allennlp.data import Vocabulary
 from allennlp.models.model import Model
 from allennlp.models.reading_comprehension.util import get_best_span
+from allennlp.modules.scalar_mix import ScalarMix
 from allennlp.nn import util, InitializerApplicator, RegularizerApplicator
 from allennlp.nn.util import masked_softmax
 from src.custom_drop_em_and_f1 import CustomDropEmAndF1
@@ -37,7 +38,8 @@ class NumericallyAugmentedBERTPlusPlus(Model):
                  arithmetic: str = 'base',
                  special_numbers: List[int] = None,
                  unique_on_multispan: bool = True,
-                 use_pytorch_transformers: bool = False) -> None:
+                 use_pytorch_transformers: bool = False,
+                 top_bert_layer_only: bool = True) -> None:
         super().__init__(vocab, regularizer)
 
         if answering_abilities is None:
