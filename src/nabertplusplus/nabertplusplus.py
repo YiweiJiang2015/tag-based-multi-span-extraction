@@ -211,12 +211,14 @@ class NumericallyAugmentedBERTPlusPlus(Model):
         # Shape: (batch_size, seqlen, bert_dim)
         bert_out, _ , bert_hidden_states = self.BERT(question_passage_tokens, seqlen_ids, pad_mask)
 
-        # last hidden state returned is the input encondings
-        bert_hidden_states = bert_hidden_states[:-1]
+        # first hidden state returned is the input embeddings
+        bert_hidden_states = bert_hidden_states[1:]
 
         if self._scalar_mix is not None:
             bert_hidden_states = torch.stack(bert_hidden_states)
-            bert_out = self._scalar_mix(bert_hidden_states)
+
+            # currently using scalar mix only for multi span head
+            bert_out_ms = self._scalar_mix(bert_hidden_states)
 
         # Shape: (batch_size, qlen, bert_dim)
         question_end = max(mask[:,1])
@@ -269,7 +271,7 @@ class NumericallyAugmentedBERTPlusPlus(Model):
                 self._question_span_module(passage_vector, question_out, question_mask)
 
         if "multiple_spans" in self.answering_abilities:
-            multi_span_result = self._multi_span_handler.forward(passage_out, span_bio_labels, pad_mask, bio_wordpiece_mask, is_bio_mask)
+            multi_span_result = self._multi_span_handler.forward(bert_out_ms, span_bio_labels, pad_mask, bio_wordpiece_mask, is_bio_mask)
             
         if "arithmetic" in self.answering_abilities:
             if self.arithmetic == "base":
