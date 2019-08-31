@@ -6,6 +6,7 @@ import torch
 from allennlp.data import Vocabulary
 from allennlp.models.model import Model
 from allennlp.models.reading_comprehension.util import get_best_span
+from allennlp.modules.scalar_mix import ScalarMix
 from allennlp.nn import util, InitializerApplicator, RegularizerApplicator
 from allennlp.nn.util import masked_softmax
 from src.custom_drop_em_and_f1 import CustomDropEmAndF1
@@ -36,7 +37,8 @@ class NumericallyAugmentedBERTPlusPlus(Model):
                  number_rep: str = 'first',
                  arithmetic: str = 'base',
                  special_numbers: List[int] = None,
-                 unique_on_multispan: bool = True) -> None:
+                 unique_on_multispan: bool = True,
+                 use_scalar_mix: bool = False) -> None:
         super().__init__(vocab, regularizer)
 
         if answering_abilities is None:
@@ -47,7 +49,13 @@ class NumericallyAugmentedBERTPlusPlus(Model):
         self.number_rep = number_rep
 
         self.BERT = BertModel.from_pretrained(bert_pretrained_model)
+        self.BERT.encoder.output_hidden_states = True
         bert_dim = self.BERT.pooler.dense.out_features
+
+        if use_scalar_mix:
+            self._scalar_mix = ScalarMix(self.BERT.config.num_hidden_layers, do_layer_norm=False)            
+        else:                        
+            self._scalar_mix = None
         
         self.dropout = dropout_prob
 
@@ -201,7 +209,15 @@ class NumericallyAugmentedBERTPlusPlus(Model):
         question_mask = (1 - seqlen_ids) * pad_mask * cls_sep_mask
         
         # Shape: (batch_size, seqlen, bert_dim)
-        bert_out, _ = self.BERT(question_passage_tokens, seqlen_ids, pad_mask)
+        bert_out, _ , bert_hidden_states = self.BERT(question_passage_tokens, seqlen_ids, pad_mask)
+
+        # last hidden state returned is the input encondings
+        bert_hidden_states = bert_hidden_states[:-1]
+
+        if self._scalar_mix is not None:
+            bert_hidden_states = torch.stack(bert_hidden_states)
+            bert_out = self._scalar_mix(bert_hidden_states)
+
         # Shape: (batch_size, qlen, bert_dim)
         question_end = max(mask[:,1])
         question_out = bert_out[:,:question_end]
