@@ -6,7 +6,6 @@ import torch
 from allennlp.data import Vocabulary
 from allennlp.models.model import Model
 from allennlp.models.reading_comprehension.util import get_best_span
-from allennlp.modules.scalar_mix import ScalarMix
 from allennlp.nn import util, InitializerApplicator, RegularizerApplicator
 from allennlp.nn.util import masked_softmax
 from src.custom_drop_em_and_f1 import CustomDropEmAndF1
@@ -37,10 +36,7 @@ class NumericallyAugmentedBERTPlusPlus(Model):
                  number_rep: str = 'first',
                  arithmetic: str = 'base',
                  special_numbers: List[int] = None,
-                 unique_on_multispan: bool = True,
-                 use_pytorch_transformers: bool = False,
-                 use_wordpiece_mask_for_multi_span: bool = True,
-                 top_bert_layer_only: bool = True) -> None:
+                 unique_on_multispan: bool = True) -> None:
         super().__init__(vocab, regularizer)
 
         if answering_abilities is None:
@@ -94,7 +90,7 @@ class NumericallyAugmentedBERTPlusPlus(Model):
         if "multiple_spans" in self.answering_abilities:
             self._multispan_predictor = default_multispan_predictor(bert_dim, dropout_prob)
             self._multispan_crf = default_crf()
-            self._multi_span_handler = MultiSpanHandler(bert_dim, self._multispan_predictor, self._multispan_crf, dropout_prob, use_wordpiece_mask_for_multi_span)
+            self._multi_span_handler = MultiSpanHandler(bert_dim, self._multispan_predictor, self._multispan_crf, dropout_prob)
             self._unique_on_multispan = unique_on_multispan
 
         self._drop_metrics = CustomDropEmAndF1()
