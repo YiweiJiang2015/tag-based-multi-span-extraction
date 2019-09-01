@@ -50,19 +50,29 @@ class NumericallyAugmentedBERTPlusPlus(Model):
         self.BERT.encoder.output_hidden_states = True
         bert_dim = self.BERT.pooler.dense.out_features
 
+        self._bert_layers_to_mix = bert_layers_to_mix
+
         if bert_layers_to_mix > 1:
             if bert_layers_to_mix > self.BERT.config.num_hidden_layers:
                 raise Exception(f"bert_layers_to_mix ({bert_layers_to_mix}) must be smaller than {self.BERT.config.num_hidden_layers}")
-
-            self._bert_layers_to_mix = bert_layers_to_mix
-
-            self._scalar_mix = dict() 
-            self._scalar_mix["head_predictor"] = ScalarMix(bert_layers_to_mix, do_layer_norm=False)
             
-            for answering_ability in self.answering_abilities:
-                self._scalar_mix[answering_ability] = ScalarMix(bert_layers_to_mix, do_layer_norm=False)
-        else:                        
-            self._scalar_mix = None
+            if len(self.answering_abilities) > 1:
+                self._scalar_mix_head_predictor = ScalarMix(bert_layers_to_mix, do_layer_norm=False)
+
+            if "passage_span_extraction" in self.answering_abilities:
+                self._scalar_mix_passage_span_extraction = ScalarMix(bert_layers_to_mix, do_layer_norm=False)
+            
+            if "question_span_extraction" in self.answering_abilities:
+                self._scalar_mix_question_span_extraction = ScalarMix(bert_layers_to_mix, do_layer_norm=False)
+
+            if "arithmetic" in self.answering_abilities:
+                self._scalar_mix_arithmetic = ScalarMix(bert_layers_to_mix, do_layer_norm=False)
+
+            if "counting" in self.answering_abilities:
+                self._scalar_mix_counting = ScalarMix(bert_layers_to_mix, do_layer_norm=False)
+
+            if "multiple_spans" in self.answering_abilities:
+                self._scalar_mix_multiple_spans = ScalarMix(bert_layers_to_mix, do_layer_norm=False)     
         
         self.dropout = dropout_prob
         self._freeze_bert = freeze_bert
@@ -203,7 +213,7 @@ class NumericallyAugmentedBERTPlusPlus(Model):
         question_end = max(mask[:,1])
         question_mask = question_mask[:,:question_end]
 
-        if self._scalar_mix is not None:
+        if self._bert_layers_to_mix > 1:
             bert_hidden_states = bert_hidden_states[-self._bert_layers_to_mix:]
             bert_hidden_states = torch.stack(bert_hidden_states)       
         else:
@@ -223,8 +233,8 @@ class NumericallyAugmentedBERTPlusPlus(Model):
 
         
         if len(self.answering_abilities) > 1:
-            if self._scalar_mix is not None:
-                passage_out_head_predictor = self._scalar_mix["head_predictor"](bert_hidden_states)
+            if self._bert_layers_to_mix > 1:
+                passage_out_head_predictor = self._scalar_mix_head_predictor(bert_hidden_states)
                 passage_vector_head_predictor = self.summary_vector(passage_out_head_predictor, passage_mask)
                 question_vector_head_predictor = self.summary_vector(passage_out_head_predictor[:,:question_end], question_mask, "question")
             else:
@@ -238,23 +248,23 @@ class NumericallyAugmentedBERTPlusPlus(Model):
             best_answer_ability = torch.argmax(answer_ability_log_probs, 1)
 
         if "counting" in self.answering_abilities:
-            if self._scalar_mix is not None:
-                passage_vector_counting = self.summary_vector(self._scalar_mix["counting"](bert_hidden_states), passage_mask)
+            if self._bert_layers_to_mix > 1:
+                passage_vector_counting = self.summary_vector(self._scalar_mix_counting(bert_hidden_states), passage_mask)
             else:
                 passage_vector_counting = passage_vector
             count_number_log_probs, best_count_number = self._count_module(passage_vector_counting)
 
         if "passage_span_extraction" in self.answering_abilities:
-            if self._scalar_mix is not None:
-                passage_out_passage_span_extraction = self._scalar_mix["passage_span_extraction"](bert_hidden_states)
+            if self._bert_layers_to_mix > 1:
+                passage_out_passage_span_extraction = self._scalar_mix_passage_span_extraction(bert_hidden_states)
             else:
                 passage_out_passage_span_extraction = passage_out
             passage_span_start_log_probs, passage_span_end_log_probs, best_passage_span = \
                 self._passage_span_module(passage_out_passage_span_extraction, passage_mask)
 
         if "question_span_extraction" in self.answering_abilities:
-            if self._scalar_mix is not None:
-                passage_out_question_span_extraction = self._scalar_mix["question_span_extraction"](bert_hidden_states)
+            if self._bert_layers_to_mix > 1:
+                passage_out_question_span_extraction = self._scalar_mix_question_span_extraction(bert_hidden_states)
                 passge_vector_question_span_extraction = self.summary_vector(passage_out_question_span_extraction, passage_mask)                            
                 question_out_question_span_extraction = passage_out_question_span_extraction[:,:question_end]
             else:
@@ -265,16 +275,16 @@ class NumericallyAugmentedBERTPlusPlus(Model):
                 self._question_span_module(passge_vector_question_span_extraction, question_out_question_span_extraction, question_mask)
 
         if "multiple_spans" in self.answering_abilities:
-            if self._scalar_mix is not None:
-                passage_out_multiple_spans = self._scalar_mix["multiple_spans"](bert_hidden_states)
+            if self._bert_layers_to_mix > 1:
+                passage_out_multiple_spans = self._scalar_mix_multiple_spans(bert_hidden_states)
             else:
                 passage_out_multiple_spans = passage_out
 
             multi_span_result = self._multi_span_handler.forward(passage_out_multiple_spans, span_bio_labels, pad_mask, bio_wordpiece_mask, is_bio_mask)
             
         if "arithmetic" in self.answering_abilities:
-            if self._scalar_mix is not None:
-                passage_out_arithmetic = self._scalar_mix["arithmetic"](bert_hidden_states)
+            if self._bert_layers_to_mix > 1:
+                passage_out_arithmetic = self._scalar_mix_arithmetic(bert_hidden_states)
                 passge_vector_arithmetic = self.summary_vector(passage_out_arithmetic, passage_mask)                            
             else:
                 passage_out_arithmetic = passage_out
