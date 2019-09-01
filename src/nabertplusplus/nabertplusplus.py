@@ -36,7 +36,8 @@ class NumericallyAugmentedBERTPlusPlus(Model):
                  answering_abilities: List[str] = None,
                  special_numbers: List[int] = None,
                  unique_on_multispan: bool = True,
-                 use_scalar_mix: bool = False) -> None:
+                 bert_layers_to_mix: int = -1,
+                 freeze_bert: bool = False) -> None:
         super().__init__(vocab, regularizer)
 
         if answering_abilities is None:
@@ -49,12 +50,22 @@ class NumericallyAugmentedBERTPlusPlus(Model):
         self.BERT.encoder.output_hidden_states = True
         bert_dim = self.BERT.pooler.dense.out_features
 
-        if use_scalar_mix:
-            self._scalar_mix = ScalarMix(self.BERT.config.num_hidden_layers, do_layer_norm=False)            
+        if bert_layers_to_mix > 1:
+            if bert_layers_to_mix > self.BERT.config.num_hidden_layers:
+                raise Exception(f"bert_layers_to_mix ({bert_layers_to_mix}) must be smaller than {self.BERT.config.num_hidden_layers}")
+
+            self._bert_layers_to_mix = bert_layers_to_mix
+
+            self._scalar_mix = dict() 
+            self._scalar_mix["head_predictor"] = ScalarMix(bert_layers_to_mix, do_layer_norm=False)
+            
+            for answering_ability in self.answering_abilities:
+                self._scalar_mix[answering_ability] = ScalarMix(bert_layers_to_mix, do_layer_norm=False)
         else:                        
             self._scalar_mix = None
         
         self.dropout = dropout_prob
+        self._freeze_bert = freeze_bert
 
         self._passage_weights_predictor = torch.nn.Linear(bert_dim, 1)
         self._question_weights_predictor = torch.nn.Linear(bert_dim, 1)
@@ -178,59 +189,103 @@ class NumericallyAugmentedBERTPlusPlus(Model):
         question_mask = (1 - seqlen_ids) * pad_mask * cls_sep_mask
         
         # Shape: (batch_size, seqlen, bert_dim)
-        bert_out, _ , bert_hidden_states = self.BERT(question_passage_tokens, seqlen_ids, pad_mask)
+        if self._freeze_bert:
+            self.BERT.eval()
+
+            with torch.no_grad():
+                bert_out, _ , bert_hidden_states = self.BERT(question_passage_tokens, seqlen_ids, pad_mask)
+        else:
+            bert_out, _ , bert_hidden_states = self.BERT(question_passage_tokens, seqlen_ids, pad_mask)
 
         # first hidden state returned is the input embeddings
         bert_hidden_states = bert_hidden_states[1:]
 
-        if self._scalar_mix is not None:
-            bert_hidden_states = torch.stack(bert_hidden_states)
-
-            # currently using scalar mix only for multi span head
-            bert_out_ms = self._scalar_mix(bert_hidden_states)
-
-        # Shape: (batch_size, qlen, bert_dim)
         question_end = max(mask[:,1])
-        question_out = bert_out[:,:question_end]
-        # Shape: (batch_size, qlen)
         question_mask = question_mask[:,:question_end]
-        # Shape: (batch_size, out)
-        question_vector = self.summary_vector(question_out, question_mask, "question")
-        
-        passage_out = bert_out
-        del bert_out
-        
-        # Shape: (batch_size, bert_dim)
-        passage_vector = self.summary_vector(passage_out, passage_mask)
+
+        if self._scalar_mix is not None:
+            bert_hidden_states = bert_hidden_states[-self._bert_layers_to_mix:]
+            bert_hidden_states = torch.stack(bert_hidden_states)       
+        else:
+            # Shape: (batch_size, qlen, bert_dim)            
+            question_out = bert_out[:,:question_end]
+            # Shape: (batch_size, qlen)
+            question_mask = question_mask[:,:question_end]
+            # Shape: (batch_size, out)
+            question_vector = self.summary_vector(question_out, question_mask, "question")
+
+            # Shape: (batch_size, bert_dim)
+            passage_vector = self.summary_vector(bert_out, passage_mask)
+
+            passage_out = bert_out
+       
+        del bert_out        
+
         
         if len(self.answering_abilities) > 1:
+            if self._scalar_mix is not None:
+                passage_out_head_predictor = self._scalar_mix["head_predictor"](bert_hidden_states)
+                passage_vector_head_predictor = self.summary_vector(passage_out_head_predictor, passage_mask)
+                question_vector_head_predictor = self.summary_vector(passage_out_head_predictor[:,:question_end], question_mask, "question")
+            else:
+                passage_vector_head_predictor = passage_vector
+                question_vector_head_predictor = question_vector
+
             # Shape: (batch_size, number_of_abilities)
             answer_ability_logits = \
-                self._answer_ability_predictor(torch.cat([passage_vector, question_vector], -1))
+                self._answer_ability_predictor(torch.cat([passage_vector_head_predictor, question_vector_head_predictor], -1))
             answer_ability_log_probs = torch.nn.functional.log_softmax(answer_ability_logits, -1)
             best_answer_ability = torch.argmax(answer_ability_log_probs, 1)
 
         if "counting" in self.answering_abilities:
-            count_number_log_probs, best_count_number = self._count_module(passage_vector)
+            if self._scalar_mix is not None:
+                passage_vector_counting = self.summary_vector(self._scalar_mix["counting"](bert_hidden_states), passage_mask)
+            else:
+                passage_vector_counting = passage_vector
+            count_number_log_probs, best_count_number = self._count_module(passage_vector_counting)
 
         if "passage_span_extraction" in self.answering_abilities:
+            if self._scalar_mix is not None:
+                passage_out_passage_span_extraction = self._scalar_mix["passage_span_extraction"](bert_hidden_states)
+            else:
+                passage_out_passage_span_extraction = passage_out
             passage_span_start_log_probs, passage_span_end_log_probs, best_passage_span = \
-                self._passage_span_module(passage_out, passage_mask)
+                self._passage_span_module(passage_out_passage_span_extraction, passage_mask)
 
         if "question_span_extraction" in self.answering_abilities:
+            if self._scalar_mix is not None:
+                passage_out_question_span_extraction = self._scalar_mix["question_span_extraction"](bert_hidden_states)
+                passge_vector_question_span_extraction = self.summary_vector(passage_out_question_span_extraction, passage_mask)                            
+                question_out_question_span_extraction = passage_out_question_span_extraction[:,:question_end]
+            else:
+                passge_vector_question_span_extraction = passage_vector
+                question_out_question_span_extraction = question_out
+
             question_span_start_log_probs, question_span_end_log_probs, best_question_span = \
-                self._question_span_module(passage_vector, question_out, question_mask)
+                self._question_span_module(passge_vector_question_span_extraction, question_out_question_span_extraction, question_mask)
 
         if "multiple_spans" in self.answering_abilities:
-            multi_span_result = self._multi_span_handler.forward(bert_out_ms, span_bio_labels, pad_mask, bio_wordpiece_mask, is_bio_mask)
+            if self._scalar_mix is not None:
+                passage_out_multiple_spans = self._scalar_mix["multiple_spans"](bert_hidden_states)
+            else:
+                passage_out_multiple_spans = passage_out
+
+            multi_span_result = self._multi_span_handler.forward(passage_out_multiple_spans, span_bio_labels, pad_mask, bio_wordpiece_mask, is_bio_mask)
             
         if "arithmetic" in self.answering_abilities:
+            if self._scalar_mix is not None:
+                passage_out_arithmetic = self._scalar_mix["arithmetic"](bert_hidden_states)
+                passge_vector_arithmetic = self.summary_vector(passage_out_arithmetic, passage_mask)                            
+            else:
+                passage_out_arithmetic = passage_out
+                passge_vector_arithmetic = passage_vector
+
             number_mask = (number_indices[:,:,0].long() != -1).long()
             number_sign_log_probs, best_signs_for_numbers, number_mask = \
-                self._base_arithmetic_module(passage_vector, passage_out, number_indices, number_mask)
+                self._base_arithmetic_module(passge_vector_arithmetic, passage_out_arithmetic, number_indices, number_mask)
             
         output_dict = {}
-        del passage_out, question_out
+        
         # If answer is given, compute the loss.
         if answer_as_passage_spans is not None or answer_as_question_spans is not None \
                 or answer_as_expressions is not None or answer_as_counts is not None:
