@@ -33,9 +33,9 @@ def main(args):
         softmax = np.exp(params) / np.sum(np.exp(params))
         sorted_indices = softmax.argsort()[::-1]
         print(head)
-        print("Indices Order:")
-        print(softmax)
-        print(list(range(1, len(params) + 1)))
+        #print("Indices Order:")
+        #print(softmax)
+        #print(list(range(1, len(params) + 1)))
         print("Descending Order:")
         print(softmax[sorted_indices].tolist())
         print((sorted_indices + 1).tolist())
