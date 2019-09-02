@@ -28,15 +28,15 @@ def main(args):
         for k, v in weights_dict.items():
             params[k] = v
         heads_to_weights[head] = params
-        abs_params = abs(params)
-        #softmax = np.exp(abs_params) / np.sum(np.exp(abs_params))
-        sorted_indices = abs_params.argsort()[::-1]
+        
+        softmax = np.exp(params) / np.sum(np.exp(params))
+        sorted_indices = softmax.argsort()[::-1]
         print(head)
         print("Indices Order:")
-        print(params)
+        print(softmax)
         print(list(range(1, len(params) + 1)))
         print("Descending Order:")
-        print(params[sorted_indices].tolist())
+        print(softmax[sorted_indices].tolist())
         print((sorted_indices + 1).tolist())
         print()
 
