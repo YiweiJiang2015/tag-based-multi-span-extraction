@@ -42,12 +42,12 @@
         "special_numbers": [ 100, 1 ],
         "multispan_head_name": "simple_bio",
         "bert_layers_to_mix": {
-          "head_predictor": [ 11, 12, 10, 9, 0 ],
-          "passage_span_extraction": [ 11, 10, 9, 8, 0 ],
-          "question_span_extraction": [ 9, 8, 10, 7, 0 ],
-          "arithmetic": [ 12, 11, 1, 10, 0 ],
-          "counting": [ 11, 10, 12, 9, 0 ],
-          "multiple_spans": [ 11, 12, 1, 10, 0 ]
+          "head_predictor": [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 ],
+          "passage_span_extraction": [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 ],
+          "question_span_extraction": [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 ],
+          "arithmetic": [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 ],
+          "counting": [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 ],
+          "multiple_spans": [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 ]
         }
     },
     "train_data_path": "data/drop_dataset_train.json",
