@@ -40,6 +40,7 @@
         "bert_pretrained_model": "bert-base-uncased",
         "dropout_prob": 0.1,
         "special_numbers": [ 100, 1 ],
+        "multispan_head_name": "simple_bio",
         "bert_layers_to_mix": {
           "head_predictor": [ 11, 12, 10, 9 ],
           "passage_span_extraction": [ 11, 10, 9, 8 ],
