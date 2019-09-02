@@ -26,8 +26,9 @@ def main(args):
     for head, weights_dict in heads_to_weights.items():
         params = np.zeros(len(weights_dict))
         for k, v in weights_dict.items():
-            params[k] = v 
-        heads_to_weights[head] = np.exp(params) / np.sum(np.exp(params))
+            params[k] = v # abs(v)
+        #heads_to_weights[head] = np.exp(params) / np.sum(np.exp(params))
+        heads_to_weights[head] = params
         print(head)
         print(heads_to_weights[head])
         print()
