@@ -26,11 +26,18 @@ def main(args):
     for head, weights_dict in heads_to_weights.items():
         params = np.zeros(len(weights_dict))
         for k, v in weights_dict.items():
-            params[k] = v # abs(v)
-        #heads_to_weights[head] = np.exp(params) / np.sum(np.exp(params))
+            params[k] = v
         heads_to_weights[head] = params
+        abs_params = abs(params)
+        #softmax = np.exp(abs_params) / np.sum(np.exp(abs_params))
+        sorted_indices = abs_params.argsort()[::-1]
         print(head)
-        print(heads_to_weights[head])
+        print("Indices Order:")
+        print(params)
+        print(list(range(1, len(params) + 1)))
+        print("Descending Order:")
+        print(params[sorted_indices].tolist())
+        print((sorted_indices + 1).tolist())
         print()
 
 if __name__ == "__main__":
