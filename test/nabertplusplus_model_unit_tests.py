@@ -1,6 +1,6 @@
 import os
 #print(os.environ.get("PATH")) # Run it when the environment is activated and use the related env values to overwrite the PATH variable 
-os.environ['PATH'] = 'C:\\Users\\Elad\\Anaconda3\\envs\\allennlp;C:\\Users\\Elad\\Anaconda3\\envs\\allennlp\\Library\\mingw-w64\\bin;C:\\Users\\Elad\\Anaconda3\\envs\\allennlp\\Library\\usr\\bin;C:\\Users\\Elad\\Anaconda3\\envs\\allennlp\\Library\\bin;C:\\Users\\Elad\\Anaconda3\\envs\\allennlp\\Scripts;C:\\Users\\Elad\\Anaconda3\\envs\\allennlp\\bin;C:\\Users\\Elad\\Anaconda3\\condabin;'
+#os.environ['PATH'] = 'C:\\Users\\Elad\\Anaconda3\\envs\\allennlp;C:\\Users\\Elad\\Anaconda3\\envs\\allennlp\\Library\\mingw-w64\\bin;C:\\Users\\Elad\\Anaconda3\\envs\\allennlp\\Library\\usr\\bin;C:\\Users\\Elad\\Anaconda3\\envs\\allennlp\\Library\\bin;C:\\Users\\Elad\\Anaconda3\\envs\\allennlp\\Scripts;C:\\Users\\Elad\\Anaconda3\\envs\\allennlp\\bin;C:\\Users\\Elad\\Anaconda3\\condabin;'
 
 import unittest
 from src.bert_indexer import BertDropTokenIndexer
@@ -28,6 +28,16 @@ class NabertPlusPlusModelUnitTests(unittest.TestCase):
         instances = reader.read(self.drop_sample_path)
 
         vocab = Vocabulary() 
+        
+        #bert_layers_to_mix = {
+            #"head_predictor": [11, 12, 10, 9],
+            #"passage_span_extraction": [11, 10, 9, 8], 
+            #"question_span_extraction": [9, 8, 10, 7],
+            #"arithmetic": [12, 11, 1, 10],
+            #"counting": [11, 10, 12, 9],
+            #"multiple_spans": [11, 12, 1, 10],
+        #    }
+
         model = NumericallyAugmentedBERTPlusPlus(vocab, self.pretrained_model, special_numbers=[100, 1])
         model.eval()
         outputs = model.forward_on_instances(instances)
