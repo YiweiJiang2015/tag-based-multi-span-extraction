@@ -5,6 +5,7 @@ from collections import defaultdict
 # Get the `ScalarMix` parameters from a trained model. These parameters
 # correspond to the learned scalar weights for each encoder layer in BERT.
 
+# python scalar_mix_weights.py [model.tar.gz] src [model_weights_path]
 
 def main(args):
 
@@ -28,7 +29,7 @@ def main(args):
         for k, v in weights_dict.items():
             params[k] = v
         heads_to_weights[head] = params
-        
+
         softmax = np.exp(params) / np.sum(np.exp(params))
         sorted_indices = softmax.argsort()[::-1]
         print(head)
