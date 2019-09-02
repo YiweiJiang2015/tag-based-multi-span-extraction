@@ -1,4 +1,3 @@
-from collections import defaultdict
 import itertools
 import json
 from overrides import overrides
@@ -9,21 +8,17 @@ from allennlp.common.file_utils import cached_path
 from allennlp.data.dataset_readers.dataset_reader import DatasetReader
 from allennlp.data.dataset_readers.reading_comprehension.drop import DropReader
 from allennlp.data.token_indexers.token_indexer import TokenIndexer
-from allennlp.data.token_indexers.wordpiece_indexer import WordpieceIndexer
 from allennlp.data.tokenizers import Token, Tokenizer, WordTokenizer
 from allennlp.data.instance import Instance
 from allennlp.data.dataset_readers.reading_comprehension.util import split_tokens_by_hyphen
-from allennlp.data.fields import Field, TextField, IndexField, LabelField, ListField, \
-                                 MetadataField, SequenceLabelField, SpanField, ArrayField
-import numpy as np
-
-from src.preprocessing.utils import SPAN_ANSWER_TYPE, SPAN_ANSWER_TYPES, ALL_ANSWER_TYPES
-from src.preprocessing.utils import get_answer_type, find_span, fill_token_indices, MULTIPLE_SPAN
-from src.preprocessing.utils import token_to_span
+from allennlp.data.fields import (Field, TextField, IndexField, LabelField, ListField,
+                                  MetadataField, SequenceLabelField, SpanField, ArrayField)
+from tqdm import tqdm
 
 from src.nhelpers import *
+from src.preprocessing.utils import SPAN_ANSWER_TYPE, SPAN_ANSWER_TYPES, ALL_ANSWER_TYPES, MULTIPLE_SPAN
+from src.preprocessing.utils import get_answer_type, fill_token_indices, token_to_span
 
-from tqdm import tqdm
 
 
 @DatasetReader.register("nabert++")
@@ -43,7 +38,7 @@ class NaBertDropReader(DatasetReader):
                  custom_word_to_num: bool = True,
                  max_depth: int = 3,
                  extra_numbers: List[float] = [],
-                 max_instances = -1,
+                 max_instances=-1,
                  uncased: bool = True,
                  is_training: bool = False,
                  target_number_rounding: bool = True):
@@ -181,7 +176,7 @@ class NaBertDropReader(DatasetReader):
 
         # if qp has more than max_pieces tokens (including CLS and SEP), clip the passage
         is_clipped = False
-        max_passage_length = None
+        max_passage_length = -1
         if len(qp_tokens) > self.max_pieces - 1:
             is_clipped = True
             qp_tokens = qp_tokens[:self.max_pieces - 1]
@@ -233,11 +228,16 @@ class NaBertDropReader(DatasetReader):
 
         if answer_annotations:            
             # Get answer type, answer text, tokenize
+            # For multi-span, remove repeating answers. Although possible, in the dataset it is mostly mistakes.
             answer_type, answer_texts = DropReader.extract_answer_info_from_annotation(answer_annotations[0])
+            if answer_type == SPAN_ANSWER_TYPE:
+                answer_texts = list(set(answer_texts))
             tokenized_answer_texts = []
             for answer_text in answer_texts:
                 answer_tokens = self.tokenizer.tokenize(answer_text)
-                tokenized_answer_texts.append(' '.join(token.text for token in answer_tokens))
+                tokenized_answer_text = ' '.join(token.text for token in answer_tokens)
+                if (tokenized_answer_text not in tokenized_answer_texts) and (answer_type == SPAN_ANSWER_TYPE):
+                    tokenized_answer_texts.append(tokenized_answer_text)
 
             metadata["answer_annotations"] = answer_annotations
             metadata["answer_texts"] = answer_texts
@@ -368,9 +368,10 @@ def create_bio_labels(spans: List[Tuple[int, int]], n_labels: int):
     return labels
 
 
-def find_valid_add_sub_expressions_with_rounding(numbers: List[int],
-                                   targets: List[int],
-                                   max_number_of_numbers_to_consider: int = 2) -> List[List[int]]:
+def find_valid_add_sub_expressions_with_rounding(
+        numbers: List[int],
+        targets: List[int],
+        max_number_of_numbers_to_consider: int = 2) -> List[List[int]]:
     valid_signs_for_add_sub_expressions = []
     # TODO: Try smaller numbers?
     for number_of_numbers_to_consider in range(2, max_number_of_numbers_to_consider + 1):
@@ -380,8 +381,9 @@ def find_valid_add_sub_expressions_with_rounding(numbers: List[int],
             values = [it[1] for it in number_combination]
             for signs in possible_signs:
                 eval_value = sum(sign * value for sign, value in zip(signs, values))
-                # our added rounding
+                # our added rounding, our only change compared to `find_valid_add_sub_expressions`
                 eval_value = round(eval_value, 5)
+                # end of our added rounding
                 if eval_value in targets:
                     labels_for_numbers = [0] * len(numbers)  # 0 represents ``not included''.
                     for index, sign in zip(indices, signs):
