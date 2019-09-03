@@ -3,6 +3,7 @@ import logging
 
 import torch
 
+from allennlp.common.params import Params
 from allennlp.data import Vocabulary
 from allennlp.models.model import Model
 from allennlp.models.reading_comprehension.util import get_best_span
@@ -75,7 +76,7 @@ class NumericallyAugmentedBERTPlusPlus(Model):
             if "multiple_spans" in self.answering_abilities:
                 self._scalar_mix_multiple_spans = ScalarMix(bert_layers_to_mix, do_layer_norm=False)     
 
-        if type(bert_layers_to_mix) is dict:
+        if type(bert_layers_to_mix) is Params:
             self._mix_bert_layers = True
 
             if len(self.answering_abilities) > 1:
@@ -262,7 +263,7 @@ class NumericallyAugmentedBERTPlusPlus(Model):
             bert_hidden_states_head_predictor = bert_hidden_states
 
             if self._mix_bert_layers:
-                if type(self._bert_layers_to_mix) is dict:
+                if type(self._bert_layers_to_mix) is Params:
                     bert_hidden_states_head_predictor = [bert_hidden_states[i] for i in self._bert_layers_to_mix['head_predictor']]
                     bert_hidden_states_head_predictor = torch.stack(bert_hidden_states_head_predictor)
             
@@ -283,7 +284,7 @@ class NumericallyAugmentedBERTPlusPlus(Model):
             bert_hidden_states_counting = bert_hidden_states
 
             if self._mix_bert_layers:
-                if type(self._bert_layers_to_mix) is dict:
+                if type(self._bert_layers_to_mix) is Params:
                     bert_hidden_states_counting = [bert_hidden_states[i] for i in self._bert_layers_to_mix['counting']]
                     bert_hidden_states_counting = torch.stack(bert_hidden_states_counting)
                 passage_vector_counting = self.summary_vector(self._scalar_mix_counting(bert_hidden_states_counting), passage_mask)
@@ -295,7 +296,7 @@ class NumericallyAugmentedBERTPlusPlus(Model):
             bert_hidden_states_passage_span_extraction = bert_hidden_states
 
             if self._mix_bert_layers:
-                if type(self._bert_layers_to_mix) is dict:
+                if type(self._bert_layers_to_mix) is Params:
                     bert_hidden_states_passage_span_extraction = [bert_hidden_states[i] for i in self._bert_layers_to_mix['passage_span_extraction']]
                     bert_hidden_states_passage_span_extraction = torch.stack(bert_hidden_states_passage_span_extraction)
                 passage_out_passage_span_extraction = self._scalar_mix_passage_span_extraction(bert_hidden_states_passage_span_extraction)
@@ -308,7 +309,7 @@ class NumericallyAugmentedBERTPlusPlus(Model):
             bert_hidden_states_question_span_extraction = bert_hidden_states
 
             if self._mix_bert_layers:
-                if type(self._bert_layers_to_mix) is dict:
+                if type(self._bert_layers_to_mix) is Params:
                     bert_hidden_states_question_span_extraction = [bert_hidden_states[i] for i in self._bert_layers_to_mix['question_span_extraction']]
                     bert_hidden_states_question_span_extraction = torch.stack(bert_hidden_states_question_span_extraction)
                 passage_out_question_span_extraction = self._scalar_mix_question_span_extraction(bert_hidden_states_question_span_extraction)
@@ -325,7 +326,7 @@ class NumericallyAugmentedBERTPlusPlus(Model):
             bert_hidden_states_multiple_spans = bert_hidden_states
 
             if self._mix_bert_layers:
-                if type(self._bert_layers_to_mix) is dict:
+                if type(self._bert_layers_to_mix) is Params:
                     bert_hidden_states_multiple_spans = [bert_hidden_states[i] for i in self._bert_layers_to_mix['multiple_spans']]
                     bert_hidden_states_multiple_spans = torch.stack(bert_hidden_states_multiple_spans)
                 passage_out_multiple_spans = self._scalar_mix_multiple_spans(bert_hidden_states_multiple_spans)
@@ -338,7 +339,7 @@ class NumericallyAugmentedBERTPlusPlus(Model):
             bert_hidden_states_arithmetic = bert_hidden_states
 
             if self._mix_bert_layers:
-                if type(self._bert_layers_to_mix) is dict:
+                if type(self._bert_layers_to_mix) is Params:
                     bert_hidden_states_arithmetic = [bert_hidden_states[i] for i in self._bert_layers_to_mix['arithmetic']]
                     bert_hidden_states_arithmetic = torch.stack(bert_hidden_states_arithmetic)
                 passage_out_arithmetic = self._scalar_mix_arithmetic(bert_hidden_states_arithmetic)
