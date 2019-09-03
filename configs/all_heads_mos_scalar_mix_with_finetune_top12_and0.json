@@ -33,7 +33,7 @@
     },
     "iterator": {
         "type": "basic",
-        "batch_size": 12
+        "batch_size": 10
     },
     "model": {
         "type": "nabert++",
