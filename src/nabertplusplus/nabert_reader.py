@@ -103,77 +103,70 @@ class NaBertDropReader(DatasetReader):
             dataset = standardize_dataset(dataset)
 
         instances_count = 0
-        for passage_id, passage_info in tqdm(dataset.items()):
-            passage_text = passage_info["passage"].strip()
+        for topic in tqdm(dataset['data']):
+            for paragraph in topic['paragraphs']:
+                passage_id = paragraph['context_id']
+                passage_info = paragraph
 
-            if self.wordpiece_numbers:
-                # In this case we actually first use a basic `WordTokenizer`, where each token is
-                # additionally split on any hyphen it contains.
-                word_tokens = split_tokens_by_hyphen(self.number_tokenizer.tokenize(passage_text))
-            else:
-                word_tokens = self.tokenizer.tokenize(passage_text)
+                passage_text = passage_info["context"].strip()
 
-            # Auxiliary variables for handling numbers from the passage
-            numbers_in_passage = []
-            number_indices = []
-            number_words = []
-            number_len = []
-            passage_tokens = []
-            curr_index = 0
+                if self.wordpiece_numbers:
+                    # In this case we actually first use a basic `WordTokenizer`, where each token is
+                    # additionally split on any hyphen it contains.
+                    word_tokens = split_tokens_by_hyphen(self.number_tokenizer.tokenize(passage_text))
+                else:
+                    word_tokens = self.tokenizer.tokenize(passage_text)
 
-            # Get all passage numbers
-            for token in word_tokens:
-                # Wordpiece tokenization is done here.
-                # In addition, every token recognized as a number is stored for arithmetic processing.
-                number = self.word_to_num(token.text, self.improve_number_extraction)
-                wordpieces = self.tokenizer.tokenize(token.text)
-                num_wordpieces = len(wordpieces)
-                if number is not None:
-                    numbers_in_passage.append(number)
-                    number_indices.append(curr_index)
-                    number_words.append(token.text)
-                    number_len.append(num_wordpieces)
-                passage_tokens += wordpieces
-                curr_index += num_wordpieces
-            
-            passage_tokens = fill_token_indices(passage_tokens, passage_text, self._uncased, self.basic_tokenizer, word_tokens)
+                # Auxiliary variables for handling numbers from the passage
+                numbers_in_passage = []
+                number_indices = []
+                number_words = []
+                number_len = []
+                passage_tokens = []
+                curr_index = 0
 
-            # Process questions from this passage
-            for qa_pair in passage_info["qa_pairs"]:
-                if 0 < self.max_instances <= instances_count:
-                    return
-
-                question_id = qa_pair["query_id"]
-                question_text = qa_pair["question"].strip()
+                # Get all passage numbers
+                for token in word_tokens:
+                    # Wordpiece tokenization is done here.
+                    # In addition, every token recognized as a number is stored for arithmetic processing.
+                    number = self.word_to_num(token.text, self.improve_number_extraction)
+                    wordpieces = self.tokenizer.tokenize(token.text)
+                    num_wordpieces = len(wordpieces)
+                    if number is not None:
+                        numbers_in_passage.append(number)
+                        number_indices.append(curr_index)
+                        number_words.append(token.text)
+                        number_len.append(num_wordpieces)
+                    passage_tokens += wordpieces
+                    curr_index += num_wordpieces
                 
-                answer_annotations: List[Dict] = list()
-                specific_answer_type = None
-                if 'answer' in qa_pair and qa_pair['answer']:
-                    answer = qa_pair['answer']
+                passage_tokens = fill_token_indices(passage_tokens, passage_text, self._uncased, self.basic_tokenizer, word_tokens)
 
-                    specific_answer_type = get_answer_type(answer)
-                    if specific_answer_type not in self.answer_types:
-                        continue
+                # Process questions from this passage
+                for qa_pair in passage_info["qas"]:
+                    if 0 < self.max_instances <= instances_count:
+                        return
 
-                    answer_annotations.append(answer)
+                    question_id = qa_pair["id"]
+                    question_text = qa_pair["question"].strip()
+                    
+                    answer_annotations: List[Dict] = list()
+                    specific_answer_type = None
 
-                if self.use_validated and "validated_answers" in qa_pair and qa_pair["validated_answers"]:
-                    answer_annotations += qa_pair["validated_answers"]
-
-                instance = self.text_to_instance(question_text,
-                                                 passage_text,
-                                                 passage_tokens,
-                                                 numbers_in_passage,
-                                                 number_words,
-                                                 number_indices,
-                                                 number_len,
-                                                 question_id,
-                                                 passage_id,
-                                                 answer_annotations,
-                                                 specific_answer_type)
-                if instance is not None:
-                    instances_count += 1
-                    yield instance
+                    instance = self.text_to_instance(question_text,
+                                                    passage_text,
+                                                    passage_tokens,
+                                                    numbers_in_passage,
+                                                    number_words,
+                                                    number_indices,
+                                                    number_len,
+                                                    question_id,
+                                                    passage_id,
+                                                    answer_annotations,
+                                                    specific_answer_type)
+                    if instance is not None:
+                        instances_count += 1
+                        yield instance
 
     @overrides
     def text_to_instance(self,
